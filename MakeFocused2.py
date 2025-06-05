@@ -6,6 +6,9 @@ import time
 import numpy as np
 import pandas as pd
 
+"""
+Get the circulating lineages from the CDC data
+"""
 data_file = "SARS-CoV-2_Variant_Proportions.tsv"
 start_date = (datetime.datetime.today() - datetime.timedelta(days=70)).strftime('%Y-%m-%d ')
 
@@ -21,7 +24,9 @@ data_df = data_df[data_df["share"] > 0]
 lins = set(data_df['variant'].tolist())
 
 del_dict = {}
-
+"""
+Get PM info from long Comp Time Windows long output
+"""
 del_in = "VariantPMsLong.tsv"
 data_df = pd.read_csv(del_in, sep='\t',)
 data_df = data_df[["NT Change", "ORFs", "AA Change"]] #
@@ -48,6 +53,10 @@ for change in AA_changes:
 
 PM_dict = {}
 
+
+"""
+associate PMs with lineages
+"""
 for var in lins:
     if var == "Other":
         continue
@@ -75,6 +84,10 @@ if not "JN.1" in PM_dict:
 all_dels = []
 matched_pms = []
 
+
+"""
+remove JN.1 and modify syntax
+"""
 lin_dict = {}
 for lin in PM_dict:
     # print(lin)
@@ -117,6 +130,9 @@ for d in set(all_dels):
         print(f"{d} not found")
         print(" ")
 
+"""
+write as json
+"""
 with open("major_lineages.json", "w") as j_out:
     j_out.write("[\n")
     lin_outs = []

@@ -15,6 +15,9 @@ e_y = '2030'
 e_m = '12'
 e_d = '31'
 
+"""
+use curl to query NCBI NLM and pull samples info
+"""
 searchstr = f'(sars-cov-2%20wastewater)%20AND%20(%22{s_y}%2F{s_m}%2F{s_d}%22%5BPublication%20Date%5D%20%3A%20%22{e_y}%2F{e_m}%2F{e_d}%22%5BPublication%20Date%5D)'
 
 os.system(f"curl -A 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:50.0) Gecko/20100101 Firefox/50.0' 'https://www.ncbi.nlm.nih.gov/sra/?term={searchstr}' -o SRA_Search_Results.html")
@@ -38,11 +41,16 @@ os.system(f"curl 'https://trace.ncbi.nlm.nih.gov/Traces/sra-db-be/sra-db-be.cgi?
 
 release_dict = {}
 
+"""
+Get release and upload info from runinfo file to add to final metadata output
+"""
 with open(f"RunInfo.{ts}.csv", "r") as info_in:
     for line in info_in:
         line = line.split(",")
         release_dict[line[0]] = (line[1], line[2])
-
+"""
+parse xml to pull out desired metadata and output it
+"""
 with open(f"SRAmetadata.{ts}.xml", "r") as xml_fh:
     with open(f"SRA_meta.{ts}.txt", "w") as txt_fh:
         with open(f"SRA_meta.{ts}.tsv", "w") as tsv_fh:

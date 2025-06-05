@@ -7,7 +7,9 @@ from Bio import Phylo
 dl_file = 'public-latest.all.masked.pb.gz'
 
 refresh = True
-
+"""
+get Usher's current data and make lineage def and phylo tree files
+"""
 if refresh:
     os.system(f"wget -O {dl_file} http://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/public-latest.all.masked.pb.gz")
     os.system(f"matUtils extract -i {dl_file} -C LineageDefinitions.tsv")
@@ -30,11 +32,13 @@ if refresh:
 
 
 
-
+#  get JN.1 node ID
 node = ""
 with open("LineageDefinitions.tsv", "r") as in_fh:
     node = in_fh.read().split("JN.1\t")[1].split("\t")[0]
-
+"""
+Pull JN.1 and decendents from full tree
+"""
 with open("SARS2Tree.txt", "r") as in_fh, open("JN.1.Tree.txt", "w") as out_fh:
     depth = 0
     rel_depth = 0
@@ -53,11 +57,17 @@ with open("SARS2Tree.txt", "r") as in_fh, open("JN.1.Tree.txt", "w") as out_fh:
             out_fh.write(line.strip())
             out_fh.write("\n")
 
+"""
+get node IDs for JN.1 and decendents
+"""
 nodes = []
 with open("JN.1.Tree.txt", "r") as in_fh:
     for line in in_fh:
         nodes.append(line.split("name=")[-1].strip().strip("')"))
 
+"""
+get node / lineage name for JN.1+
+"""
 node_dict = {}
 with open("LineageDefinitions.tsv", "r") as in_fh:
     for line in in_fh:
@@ -65,6 +75,9 @@ with open("LineageDefinitions.tsv", "r") as in_fh:
         if line[1] in nodes:
             node_dict[line[1]] = line[0]
 
+"""
+Generate annotated JN.1+ tree with lineage names
+"""
 with open("JN.1.Tree.txt", "r") as in_fh, open("JN.1.Tree.ann.txt", "w") as out_fh:
     for line in in_fh:
         out_fh.write(line.strip("\n"))
@@ -74,7 +87,9 @@ with open("JN.1.Tree.txt", "r") as in_fh, open("JN.1.Tree.ann.txt", "w") as out_
             pass
         out_fh.write("\n")
 
-
+"""
+Get lineage and decendents info for each JN.1+
+"""
 var_nodes_dict = {}
 with open("JN.1.Tree.ann.txt", "r") as in_fh:
     depth = 0
@@ -97,6 +112,9 @@ with open("JN.1.Tree.ann.txt", "r") as in_fh:
 
 PM_dict = {}
 
+"""
+Get PM info each lineage based on https://github.com/alurqu/sars-cov-2-lineage-dominant-mutations
+"""
 for var in var_nodes_dict:
     path = ""
     for c in var:
@@ -114,7 +132,9 @@ for var in var_nodes_dict:
         with open(path, "r") as in_fh:
             PM_dict[var] = in_fh.read().strip().split("\n")
 
-
+"""
+write out PMs specific for each lineage + decendents, but not ancestral lineages
+"""
 with open("JN.1.AAPM.tsv", "w") as out_fh:
     for var in var_nodes_dict:
         if not var in PM_dict:
@@ -129,19 +149,3 @@ with open("JN.1.AAPM.tsv", "w") as out_fh:
                 PMs.append(PM)
         PMs = ";".join(PMs)
         out_fh.write(f"{var_nodes_dict[var]}\t{var}\t{PMs}\n")
-
-# with open("Highlight_PMs.tsv", "w") as out_fh:
-    # for var in var_nodes_dict:
-        # if not var in PM_dict:
-            # continue
-        # prev_PMs = []
-        # if var_nodes_dict[var]:
-            # for lin in var_nodes_dict[var]:
-                # prev_PMs += PM_dict[lin]
-                # break
-        # PMs = []
-        # for PM in PM_dict[var]:
-            # if not PM in prev_PMs:
-                # PMs.append(PM)
-        # PMs = ";".join(PMs)
-        # out_fh.write(f"{var_nodes_dict[var]}\t{var}\t{PMs}\n")

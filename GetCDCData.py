@@ -6,17 +6,23 @@ import time
 import numpy as np
 import pandas as pd
 
+
+"""
+download CDC variant data
+"""
 new_dl = True
 data_url = "https://data.cdc.gov/api/views/jr58-6ysp/rows.tsv"
 data_file = "SARS-CoV-2_Variant_Proportions.tsv"
 start_date = (datetime.datetime.today() - datetime.timedelta(days=70)).strftime('%Y-%m-%d ')
-if new_dl:
+if new_dl: # keep old file to see if they are still updating
     os.system(f"mv -f {data_file} {data_file}.old")
     os.system(f"curl {data_url} -v -o {data_file}")
 
 
 exit()
 
+"""
+### code moved to Comp Time Windows
 linage_rank_dict = {}
 
 data_df = pd.read_csv(data_file, sep='\t',)
@@ -44,4 +50,4 @@ data_df = data_df.sort_values(by='avg', ascending=False)
 ranked_vars = data_df['variant'].tolist()
 
 print(ranked_vars)
-
+"""
