@@ -104,8 +104,8 @@ for lin in PM_dict:
         ent = ent.split(":")
         if ent[0] in ("Del", "Ins"):
             continue
-        if "ORF1" in ent[0]:
-            ent[0] = "ORF1"
+        # if "ORF1" in ent[0]:
+            # ent[0] = "ORF1"
         if len(ent) < 2:
             print(f"{lin} {ent}")
             continue

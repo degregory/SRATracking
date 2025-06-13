@@ -8,6 +8,7 @@ import multiprocessing as mp
 import numpy as np
 import pandas as pd
 import gzip
+import re
 
 pysam.set_verbosity(0)
 
@@ -70,13 +71,19 @@ data_int = False
 
 # check data integrity
 for week in acc_dict:
+    if not len(acc_dict[week]) == len(set(acc_dict[week])):
+        print(f"repeated acc for {week}")
+        acc_dict[week] = set(acc_dict[week])
     data_int = False
     if os.path.isfile(f"{week}.nts.tsv") and os.path.isfile(f"{week}.covars.tsv"):
         with open(f"{week}.nts.tsv", "r") as in1, open(f"{week}.covars.tsv", "r") as in2:
             if "\nall end\n" in in1.read() and "\nall end\n" in in2.read():
                 data_int = True
-    if data_int == False:
-        print(f"error or no data for {week}")
+        if data_int == False:
+            print(f"error in data for {week}")
+
+    elif data_int == False:
+        print(f"no data for {week}")
 
 last_week = ''
 count = 0
@@ -93,8 +100,9 @@ print(f"total : {total_samp}")
 read_acc = []
 if os.path.isfile("procced_acc.txt"):
     with open("procced_acc.txt", "r") as read_in:
-        for line in read_in:
-            read_acc.append(line.strip())
+        read_acc = read_in.read().split("\n")
+        # for line in read_in:
+            # read_acc.append(line.strip())
 
 file_dict = {}
 cram_dict = {}
@@ -143,21 +151,21 @@ if file_search:
 
     unfound = 0
     for week in found_acc:
-        missed = len(acc_dict[week]) - len(found_acc[week])
-        print(f"{week} : {len(found_acc[week])} with {missed} missing")
+        missed = len(acc_dict[week]) - len(set(found_acc[week] + found_cram[week]))
+        print(f"{week} : Found {len(found_acc[week])} covar and {len(found_cram[week])} crams with {missed} missing")
         unfound += missed
     print(f"{unfound} samples not found")
 
-    with open("found_meta.tsv", "w") as out_fh, open("breaks.txt", "w") as out2_fh:
+    with gzip.open("found_meta.tsv.gz", "wb") as out_fh, open("breaks.txt", "w") as out2_fh:
         """
         found_meta : metadata for the samples found
         breaks : accession for samples that had a cram file, but not covars,
         should only be empty or nearly empty samples
         """
-        out_fh.write("Sample\tBioProject\tBioSample\tSubmitter\tCollection Date\tLocation\tPopulation\tReads\tReleaseDate\tLoadDate\n")
+        out_fh.write(b"Sample\tBioProject\tBioSample\tSubmitter\tCollection Date\tLocation\tPopulation\tReads\tReleaseDate\tLoadDate\n")
         for week in found_acc:
             for acc in set(found_acc[week] + found_cram[week]):
-                out_fh.write(meta_dict[acc])
+                out_fh.write(meta_dict[acc].encode())
             for acc in set(found_cram[week]):
                 if not acc in found_acc[week]:
                     out2_fh.write(f"{acc}\n")
@@ -373,8 +381,10 @@ with open("JN.1.covars.tsv", "r") as JN_in:
 
 
 def get_pos(PM):
-    POS = int(PM.split("\t")[0].split(" ")[0].split(",")[0].split("|")[0].split("(")[0].split("-")[0].strip("ATGCNDel"))
-    return POS
+    POS = re.search(r'\d+', PM) # int(PM.split("\t")[0].split(" ")[0].split(",")[0].split("|")[0].split("(")[0].split("-")[0].strip("ATGCNDel"))
+    if POS:
+        return int(POS.group(0))
+    return -1
 
 
 JN_clade_PM_dict = {}
@@ -389,8 +399,8 @@ with open("/mnt/d/Tree/JN.1.AAPM.tsv", "r") as in_fh:
             continue
         for pm in line[2].split(";"):
             pm = pm.split(":")
-            if "ORF1" in pm[0]:
-                pm[0] = "ORF1"
+            # if "ORF1" in pm[0]:
+                # pm[0] = "ORF1"
             try:
                 JN_clade_PM_dict[pm[0]]
             except:
@@ -447,6 +457,10 @@ for i in (0, 1):
     header += "\tTime Span\tCount\tAbundance\tTotal Coverage\tPos. Samples\t1k+ read samples\tSamples Processed"
 header += "\tdiff\tProcess end date\n"
 
+def Borf(match):
+        number = int(match.group(0))
+        return str(number - 4401)
+
 def weekly_out(j):
     """
     Compairs two 3 week time frames
@@ -457,6 +471,7 @@ def weekly_out(j):
     passed changes are compaired between the weeks and writen to outputs
     NO Returns, writes time window specific VariantPMs.tsv and updates VariantPMsComp tsv.
     """
+    print(weeks[j])
     new = False
 
     for i in range(0, 6):
@@ -537,6 +552,7 @@ def weekly_out(j):
     passed_pm_dict = {}
     for change in passed_pms:
         schange = change.split("|")
+        schange[1] = "|".join(schange[1:])
         try:
             passed_pm_dict[schange[1]]["nts"].append(schange[0])
         except:
@@ -578,7 +594,6 @@ def weekly_out(j):
                 pass
 
     plot_dict = {}
-    header = ""
     to_write = []
     matched_lin_dict = {}
     with open(f"{weeks[j]}.VariantPMs.tsv", "w") as var_out:
@@ -604,16 +619,20 @@ def weekly_out(j):
                 orf = pm_change.split(":")[0]
                 if orf in JN_AAchanges and AA_change in JN_AAchanges[orf]:
                     continue
-                AAchanges.append(AA_change)
 
-                if "ORF1a" in orf:
-                    orf = "ORF1"
+                if "ORF1ab" in orf:
+                    if get_pos(AA_change) > 4401:
+                        orf = "ORF1b"
+                        AA_change = re.sub(r'\d+', Borf, AA_change)
+                    else:
+                        orf = "ORF1a"
                 elif "ORF" in orf:
                     orf = orf.split("_")[0]
 
                 else:
                     orf = orf[0].upper()
 
+                AAchanges.append(AA_change)
                 orfs.append(orf)
                 if not orfs:
                     continue
@@ -695,7 +714,6 @@ with mp.Manager() as manager:
         outtings = []
 
         for j in range(0, len(weeks)-5):
-            print(weeks[j])
             if len(found_acc[weeks[j]]) < 20:
                 continue
 

@@ -8,7 +8,7 @@ import multiprocessing as mp
 import numpy as np
 import pandas as pd
 import gzip
-
+import re
 
 """
 No tracking of processed samples, so a lot of unnecessary processing.  TODO add tracking
@@ -124,6 +124,11 @@ else:
     print("meta not found")
     exit()
 
+with open("Regional_acc.tsv", "w") as out_fh:
+    for week in samp_dict:
+        for acc in sorted(samp_dict[week].keys(), key=lambda x: samp_dict[week][x]["region"]):
+            out_fh.write(f"{week}\t{samp_dict[week][acc]["region"]}\t{acc}\n")
+
 """
 Priority iteration through data directories (same as for Comp Time Windows) to get info from samples' covar and nt calls
 """
@@ -154,18 +159,25 @@ for path in paths:
 
 
 def get_pos(PM):
-    POS = PM.split("\t")[0].split(" ")[0].split(",")[0].split("|")[0].split("(")[0].split("-")[0].strip("ATGCNDel")
-    return POS
+    # return int(PM.split("\t")[0].split(" ")[0].split(",")[0].split("|")[0].split("(")[0].split("-")[0].strip("ATGCNDel"))
+    POS = re.search(r'\d+', PM) #
+    if POS:
+        return int(POS.group(0))
+    return -1
 
 def proc_week(week):
-    
+
     """
     collapses weekly region files
     """
     covar_dict = {}
     cov_dict = {}
-    for covar in time_var_dict[week]:
-        cov_dict[get_pos(covar)] = 0
+    for region in regions_dict:
+        covar_dict[region] = {}
+        cov_dict[region] = {}
+        for covar in time_var_dict[week]:
+            cov_dict[region][get_pos(covar)] = 0
+            covar_dict[region][covar] = 0
 
     for acc in samp_dict[week]:
         try:
@@ -180,14 +192,8 @@ def proc_week(week):
                         continue
                     line = line.split("\t")
                     if line[0] in time_var_dict[week]:
-                        try:
-                            covar_dict[line[0]]
-                        except:
-                            covar_dict[line[0]] = {}
-                        try:
-                            covar_dict[line[0]][samp_dict[week][acc]["region"]] +=int(line[1])
-                        except:
-                            covar_dict[line[0]][samp_dict[week][acc]["region"]] = int(line[1])
+                        covar_dict[samp_dict[week][acc]["region"]][line[0]] += int(line[1])
+                        
             try:
                 samp_dict[week][acc]["nts"]["cut"][0]
             except KeyError as err:
@@ -199,14 +205,32 @@ def proc_week(week):
                     for line in nt_in:
                         line = line.decode()
                         line = line.split("\t")
-                        if line[0] in cov_dict:
-                            cov_dict[line[0]] += int(line[9])
+                        if int(line[0]) in cov_dict[samp_dict[week][acc]["region"]]:
+                            cov_dict[samp_dict[week][acc]["region"]][int(line[0])] += int(line[9])
+
+    # for region in regions_dict:
+        # with open(f"HHS/{region}.{week}.covage.tsv", "w") as out_fh:
+            # for POS in 
 
     with open(f"HHS/{week}.covars.tsv", "w") as out_fh:
-        for covar in covar_dict:
-            for region in covar_dict[covar]:
-                out_fh.write(f"{covar}\t{region}\t{covar_dict[covar][region]}\t{cov_dict[get_pos(covar)]}\t{covar_dict[covar][region]/cov_dict[get_pos(covar)]}\n")
-
+        for region in covar_dict:
+            for covar in covar_dict[region]:
+                POS = get_pos(covar)
+                abund = 0
+                if covar_dict[region][covar] > 0:
+                    try:
+                        abund = covar_dict[region][covar]/cov_dict[region][POS]
+                    except:
+                        print("zero coverage for positive count covar")
+                        print(week)
+                        print(covar)
+                        print(region)
+                        print(covar_dict[region][covar])
+                        print(cov_dict[region][get_pos(covar)])
+                        print(POS)
+                        
+                out_fh.write(f"{covar}\t{region}\t{covar_dict[region][covar]}\t{cov_dict[region][POS]}\t{abund}\n")
+ 
 
 with mp.Manager() as manager:
     with mp.Pool(6) as pool:
@@ -222,6 +246,10 @@ with mp.Manager() as manager:
 
         pool.close()
         pool.join()
+
+def Borf(match):
+        number = int(match.group(0))
+        return str(number - 4401)
 
 with open("HHS.long.tsv", "w") as out_fh:
     """
@@ -256,8 +284,12 @@ with open("HHS.long.tsv", "w") as out_fh:
                 pm_change = change.strip("()")
                 AA_change = pm_change.split("(")[-1]
                 orf = pm_change.split(":")[0]
-                if "ORF1a" in orf:
-                    orf = "ORF1"
+                if "ORF1ab" in orf:
+                    if get_pos(AA_change) > 4401:
+                        orf = "ORF1b"
+                        AA_change = re.sub(r'\d+', Borf, AA_change)
+                    else:
+                        orf = "ORF1a"
                 elif "ORF" in orf:
                     orf = orf.split("_")[0]
                 else:
